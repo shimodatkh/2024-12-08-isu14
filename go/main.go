@@ -21,6 +21,7 @@ var db *sqlx.DB
 
 func main() {
 	mux := setup()
+	go Integrate(":19000")
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
 }
