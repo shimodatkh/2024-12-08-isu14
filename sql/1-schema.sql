@@ -142,3 +142,6 @@ CREATE INDEX access_token ON chairs (access_token);
 
 CREATE INDEX idx_ride_id_2 ON ride_statuses (ride_id,chair_sent_at,created_at);
 CREATE INDEX idx_ride_id_3 ON ride_statuses (ride_id,app_sent_at,created_at);
+
+CREATE INDEX idx_user_id ON rides (user_id,created_at);
+CREATE INDEX idx_used_by ON coupons (used_by);
