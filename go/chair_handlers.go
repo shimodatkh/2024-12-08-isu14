@@ -209,9 +209,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// マッチしたchairが送信したride_statusesを取得する
 	if err := tx.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND chair_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
-		// マッチしたchairが送信したride_statusesがない場合は、最新のride_statusを取得する
 		if errors.Is(err, sql.ErrNoRows) {
 			status, err = getLatestRideStatus(ctx, tx, ride.ID)
 			if err != nil {
@@ -236,15 +234,6 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	if yetSentRideStatus.ID != "" {
 		_, err := tx.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = CURRENT_TIMESTAMP(6) WHERE id = ?`, yetSentRideStatus.ID)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-	}
-
-	// COMPLETEDの時にchairのcan_matchをtrueにするのを移動する
-	// chairのcan_matchをtrueにする
-	if status == "COMPLETED" {
-		if _, err := db.ExecContext(ctx, "UPDATE chairs SET can_match = TRUE WHERE id = ?", ride.ChairID); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
