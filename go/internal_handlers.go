@@ -12,13 +12,14 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	// 処理の流れ:
 	// 1. マッチング待ちのライドを、移動距離が長い順に取得
 	// 2. 各ライドに対して、最適な車椅子を選定
-	// 3. 悲観ロックを用いて安全にマッチング
+	// 3. 楽観ロックを用いて安全にマッチング
 
 	ride := &Ride{}
 	if err := db.GetContext(ctx, ride, `
 		SELECT r.*, 
 			ABS(r.destination_latitude - r.pickup_latitude) + 
-			ABS(r.destination_longitude - r.pickup_longitude) as total_distance
+			ABS(r.destination_longitude - r.pickup_longitude) as total_distance,
+			r.version
 		FROM rides r
 		WHERE r.chair_id IS NULL
 		ORDER BY total_distance DESC, created_at ASC
@@ -83,20 +84,22 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 悲観ロックされた状態でマッチング
+	// 楽観ロックを使用してマッチング
 	result, err := db.ExecContext(ctx, `
 		UPDATE rides 
 		SET 
-			chair_id = ?
+			chair_id = ?,
+			version = version + 1
 		WHERE id = ? 
+		AND version = ? 
 		AND chair_id IS NULL`,
-		chairs[0].ID, ride.ID)
+		chairs[0].ID, ride.ID, ride.Version)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	// 悲観ロックが失敗した場合（他のプロセスが既にマッチングを行った）
+	// 楽観ロックが失敗した場合（他のプロセスが既にマッチングを行った）
 	affected, err := result.RowsAffected()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
