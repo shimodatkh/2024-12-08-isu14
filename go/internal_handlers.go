@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 )
 
@@ -21,36 +22,45 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	}
 
 	matched := &Chair{}
-	empty := false
-	for i := 0; i < 10; i++ {
-		if err := db.GetContext(ctx, matched, "SELECT * FROM chairs INNER JOIN (SELECT id FROM chairs WHERE is_active = TRUE ORDER BY RAND() LIMIT 1) AS tmp ON chairs.id = tmp.id LIMIT 1"); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-			writeError(w, http.StatusInternalServerError, err)
-		}
-
-		if err := db.GetContext(ctx, &empty, "SELECT COUNT(*) = 0 FROM (SELECT COUNT(chair_sent_at) = 6 AS completed FROM ride_statuses WHERE ride_id IN (SELECT id FROM rides WHERE chair_id = ?) GROUP BY ride_id) is_completed WHERE completed = FALSE", matched.ID); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
+	if err := db.GetContext(ctx, matched, `
+		SELECT * FROM chairs 
+		WHERE is_active = TRUE 
+		AND can_match = TRUE
+		ORDER BY RAND() 
+		LIMIT 1`); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			slog.Info("123 no matched chair")
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		if empty {
-			break
-		}
-	}
-	if !empty {
+		writeError(w, http.StatusInternalServerError, err)
 		w.WriteHeader(http.StatusNoContent)
+
+		return
+	}
+	// slogでマッチしたことをログに出す
+	slog.Info("123 matched chair", "chair_id", matched.ID, "ride_id", ride.ID)
+
+	result, err := db.ExecContext(ctx, `
+		UPDATE rides r
+		INNER JOIN chairs c ON c.id = ?
+		SET r.chair_id = c.id,
+			c.can_match = FALSE
+		WHERE r.id = ?
+		AND c.can_match = TRUE`, matched.ID, ride.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matched.ID, ride.ID); err != nil {
+	affected, err := result.RowsAffected()
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	// chairのcan_matchをfalseにする
-	if _, err := db.ExecContext(ctx, "UPDATE chairs SET can_match = FALSE WHERE id = ?", matched.ID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+	if affected == 0 {
+		slog.Info("123 chair was already matched", "chair_id", matched.ID)
+		w.WriteHeader(http.StatusConflict)
 		return
 	}
 
