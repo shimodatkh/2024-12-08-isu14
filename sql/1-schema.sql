@@ -145,9 +145,3 @@ CREATE INDEX idx_ride_id_3 ON ride_statuses (ride_id,app_sent_at,created_at);
 
 CREATE INDEX idx_user_id ON rides (user_id,created_at);
 CREATE INDEX idx_used_by ON coupons (used_by);
-
-
-ALTER TABLE rides ADD COLUMN version INT DEFAULT 0;
-CREATE INDEX idx_rides_matching ON rides (chair_id) WHERE chair_id IS NULL;
-CREATE INDEX idx_chair_locations_latest ON chair_locations (chair_id, created_at DESC);
-CREATE INDEX idx_chairs_active ON chairs (is_active) WHERE is_active = TRUE;
