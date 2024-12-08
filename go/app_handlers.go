@@ -571,11 +571,12 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// chairのcan_matchをtrueにする
-	if _, err := db.ExecContext(ctx, "UPDATE chairs SET can_match = TRUE WHERE id = ?", ride.ChairID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
+	// COMPLETEDの時にchairのcan_matchをtrueにするのを移動する
+	// // chairのcan_matchをtrueにする
+	// if _, err := db.ExecContext(ctx, "UPDATE chairs SET can_match = TRUE WHERE id = ?", ride.ChairID); err != nil {
+	// 	writeError(w, http.StatusInternalServerError, err)
+	// 	return
+	// }
 
 	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE id = ?`, rideID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
