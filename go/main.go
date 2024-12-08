@@ -138,6 +138,16 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	slog.Info("initializeHandler 2")
+	// /var/log/mysql/mysql-slow.logを空にする
+	exec.Command("sudo truncate -s 0 /var/log/mysql/mysql-slow.log").Run()
+	// nginxのログを空にする
+	exec.Command("sudo truncate -s 0 /var/log/nginx/access.log").Run()
+	exec.Command("sudo truncate -s 0 /var/log/nginx/error.log").Run()
+	if _, err := http.Get("http://52.198.228.106:9000/api/group/collect"); err != nil {
+		// ログに出力
+		slog.Error("failed to communicate with pprotein", "error", err.Error())
+	}
 
 	writeJSON(w, http.StatusOK, postInitializeResponse{Language: "go"})
 }
